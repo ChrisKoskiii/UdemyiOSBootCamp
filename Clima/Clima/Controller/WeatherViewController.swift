@@ -1,72 +1,68 @@
 //
-//  ViewController.swift
+//  WeatherManager.swift
 //  Clima
 //
-//  Created by Angela Yu on 01/09/2019.
-//  Copyright © 2019 App Brewery. All rights reserved.
+//  Created by Christopher Koski on 2/24/22.
+//  Copyright © 2022 App Brewery. All rights reserved.
 //
 
-import UIKit
+import Foundation
+import CoreLocation
 
-class WeatherViewController: UIViewController, UITextFieldDelegate, WeatherManagerDelegate {
+protocol WeatherManagerDelegate {
+  func didUpdateWeather(_ weatherManager: WeatherManager, weather: WeatherModel)
+  func didFailWithError(error: Error)
+}
+
+struct WeatherManager {
+  let weatherURL = "https://api.openweathermap.org/data/2.5/weather?appid=2e22b2e5420de2d5f7a7d1a713555439&units=imperial"
   
+  var delegate: WeatherManagerDelegate?
   
-  @IBOutlet weak var conditionImageView: UIImageView!
-  @IBOutlet weak var temperatureLabel: UILabel!
-  @IBOutlet weak var cityLabel: UILabel!
-  @IBOutlet weak var searchTextField: UITextField!
-  
-  var weatherManager = WeatherManager()
-  
-  override func viewDidLoad() {
-    super.viewDidLoad()
-    
-    weatherManager.delegate = self
-    searchTextField.delegate = self
+  func fetchWeather(cityName: String) {
+    let urlString = "\(weatherURL)&q=\(cityName)"
+    performRequest(with: urlString)
+  }
+  func fetchWeather(latitude: CLLocationDegrees, longitude: CLLocationDegrees) {
+    let urlString = "\(weatherURL)&lat=\(latitude)&lon=\(longitude)"
+    performRequest(with: urlString)
   }
   
-  
-  @IBAction func searchPressed(_ sender: UIButton) {
-    searchTextField.endEditing(true)
-    print(searchTextField.text!)
-  }
-  
-  func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-    searchTextField.endEditing(true)
-    print(searchTextField.text!)
-    return true
-  }
-  
-  func textFieldShouldEndEditing(_ textField: UITextField) -> Bool {
-    if textField.text != "" {
-      return true
-    } else {
-      textField.placeholder = "Type something"
-      return false
+  func performRequest(with urlString: String) {
+    if let url = URL(string: urlString) {
+      let session = URLSession(configuration: .default)
+      let task = session.dataTask(with: url) { (data, response, error) in
+        if error != nil {
+          self.delegate?.didFailWithError(error: error!)
+          return
+        }
+        if let safeData = data {
+          if let weather = self.parseJSON(safeData) {
+            self.delegate?.didUpdateWeather(self, weather: weather)
+          }
+        }
+      }
+      task.resume()
     }
   }
   
-  func textFieldDidEndEditing(_ textField: UITextField) {
+  func parseJSON(_ weatherData: Data) -> WeatherModel? {
+    let decoder = JSONDecoder()
     
-    if let city = searchTextField.text {
-      weatherManager.fetchWeather(cityName: city)
+    do {
+      let decodedData = try decoder.decode(WeatherData.self, from: weatherData)
+      let id = decodedData.weather[0].id
+      let temp = decodedData.main.temp
+      let name = decodedData.name
+      
+      let weather = WeatherModel(conditionId: id, cityName: name, temperature: temp)
+      return weather
+      
+    } catch {
+      self.delegate?.didFailWithError(error: error)
+      return nil
     }
-    
-    searchTextField.text = ""
-    textField.placeholder = "Search"
-  }
-  
-  func didUpdateWeather(_ weatherManager: WeatherManager, weather: WeatherModel) {
-    DispatchQueue.main.async {
-      self.temperatureLabel.text = weather.temperatureString
-      self.conditionImageView.image = UIImage(systemName: weather.conditionName)
-      print(weather.conditionId)
-      print(weather.conditionName)
-    }
-  }
-  
-  func didFailWithError(error: Error) {
-    print(error)
   }
 }
+
 
