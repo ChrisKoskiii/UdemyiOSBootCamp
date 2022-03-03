@@ -5,6 +5,7 @@
 //  Created by Christopher Koski on 2/24/22.
 //  Copyright © 2022 App Brewery. All rights reserved.
 //
+//go over how to fetch and parse JSON here
 
 import Foundation
 import CoreLocation
